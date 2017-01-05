@@ -1,48 +1,113 @@
 package mySublime;
 import java.awt.Color;
 import java.awt.Font;
-import java.util.Arrays;
-import java.util.HashSet;
-import java.util.Set;
+import java.awt.event.ActionEvent;
+import java.awt.event.ActionListener;
+import java.awt.event.InputEvent;
+import java.awt.event.KeyEvent;
+import java.io.BufferedReader;
+import java.io.BufferedWriter;
+import java.io.File;
+import java.io.FileReader;
+import java.io.FileWriter;
+import java.io.IOException;
 
 import javax.swing.ImageIcon;
+import javax.swing.JFileChooser;
 import javax.swing.JFrame;
 import javax.swing.JMenu;
 import javax.swing.JMenuBar;
+import javax.swing.JMenuItem;
+import javax.swing.JOptionPane;
 import javax.swing.JScrollPane;
 import javax.swing.JTextPane;
-import javax.swing.SwingUtilities;
-import javax.swing.event.DocumentEvent;
-import javax.swing.event.DocumentListener;
-import javax.swing.text.BadLocationException;
-import javax.swing.text.Document;
-import javax.swing.text.Style;
-import javax.swing.text.StyleConstants;
-import javax.swing.text.StyledDocument;
+import javax.swing.KeyStroke;
 
-public class HighlightKeywordsDemo {
-	public static void main(String[] args) {
-		JFrame frame = new JFrame();
+
+
+public class HighlightKeywordsDemo implements ActionListener {
+	// setup icons - File Menu
+	private final ImageIcon newIcon = new ImageIcon("icons/new.png");
+	private final ImageIcon openIcon = new ImageIcon("icons/open.png");
+	private final ImageIcon saveIcon = new ImageIcon("icons/save.png");
+	private final ImageIcon closeIcon = new ImageIcon("icons/close.png");
+	
+	// setup icons - Edit Menu
+	private final ImageIcon cutIcon = new ImageIcon("icons/cut.png");
+	private final ImageIcon copyIcon = new ImageIcon("icons/copy.png");
+	private final ImageIcon pasteIcon = new ImageIcon("icons/paste.png");
+	private final ImageIcon selectAllIcon = new ImageIcon("icons/selectall.png");
+	
+	public static final String EDITOR_NAME = "MySublime Text";
+
+	private JMenuItem openFile,newFile,saveFile,exit,copy,cut,paste,selectAll;
+	private JFrame frame;
+	private JTextPane editor;
+	private File currentFile = null;
+	private boolean isModefied = false;
+	
+	public HighlightKeywordsDemo() {
+		frame = new JFrame();
 		frame.setSize(700, 700);
 		frame.setLocationRelativeTo(null);
-		frame.setTitle("MySublime Text");
+		frame.setTitle("Untitled - " + EDITOR_NAME);
 		ImageIcon icon = new ImageIcon("icon.jpg");
 		frame.setIconImage(icon.getImage());
 		
 		JMenuBar menuBar = new JMenuBar();
 		JMenu file = new JMenu("File");
-		JMenu find = new JMenu("Find");
+		newFile = new JMenuItem("New File", newIcon);
+		newFile.addActionListener(this);
+		newFile.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_N, InputEvent.CTRL_MASK));
+		openFile = new JMenuItem("Open File", openIcon);
+		openFile.addActionListener(this);
+		openFile.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_O, InputEvent.CTRL_MASK));
+		//JMenuItem openFolder = new JMenuItem("Open Folder");
+		saveFile = new JMenuItem("Save", saveIcon);
+		saveFile.addActionListener(this);
+		saveFile.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_S, InputEvent.CTRL_MASK));
+		//JMenuItem saveAs = new JMenuItem("Save As");
+		exit = new JMenuItem("exit", closeIcon);
+		exit.addActionListener(this);
+		exit.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_E, InputEvent.CTRL_MASK));
+		file.add(newFile);
+		file.add(openFile);
+		//file.add(openFolder);
+		//file.add(new JSeparator());
+		file.add(saveFile);
+		//file.add(saveAs);
+		//file.add(new JSeparator());
+		file.add(exit);
+		
+		JMenu edit = new JMenu("Edit");
+		copy =  new JMenuItem("Copy", copyIcon);
+		copy.addActionListener(this);
+		copy.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_C, InputEvent.CTRL_MASK));
+		cut = new JMenuItem("Cut", cutIcon);
+		cut.addActionListener(this);
+		cut.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_X, InputEvent.CTRL_MASK));
+		paste = new JMenuItem("Paste", pasteIcon);
+		paste.addActionListener(this);
+		paste.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_V, InputEvent.CTRL_MASK));
+		selectAll = new JMenuItem("Slect All", selectAllIcon);
+		selectAll.addActionListener(this);
+		selectAll.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_A, InputEvent.CTRL_MASK));
+		edit.add(copy);
+		edit.add(cut);
+		edit.add(paste);
+		edit.add(selectAll);
+		
 		JMenu view = new JMenu("View");
 		menuBar.add(file);
-		menuBar.add(find);
-		menuBar.add(view);
+		menuBar.add(edit);
 		
-		JTextPane editor = new JTextPane();
+		editor = new JTextPane();
 		Color bgColor = new Color(30, 30, 30);
 		Font codeFont = new Font("Monospace", Font.PLAIN, 14);
 		editor.setFont(codeFont);
 		editor.setBackground(bgColor);	
-		editor.getDocument().addDocumentListener(new SyntaxHighlighter(editor));
+		
+		editor.getDocument().addDocumentListener(new SyntaxHighlighterListener(this, editor));
 		editor.setCaretColor(Color.WHITE);
 		JScrollPane jScrollPane = new JScrollPane(editor);
 		
@@ -51,322 +116,120 @@ public class HighlightKeywordsDemo {
 		frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
 		frame.setVisible(true);
 	}
-}
-
-/**
- * 当文本输入区的有字符插入或者删除时, 进行高亮.
- * 
- * 要进行语法高亮, 文本输入组件的document要是styled document才行. 所以不要用JTextArea. 可以使用JTextPane.
- * 
- * @author Biao
- * 
- */
-
-class SyntaxHighlighter implements DocumentListener {
-	private Set<String> keywords;
-	private Set<String> punctuations;
-	private Set<String> arithmeticOperators;
 	
-	public static final String[] keywordArray = {"break","case","catch","continue","default","delete","do","else",
-			"finally","for","function","if","in","instanceof","new","return","switch","this","throw","try","typeof",
-			"var","void","while","with"};//关键词
-	public static final String[] punctuationArray = {"\\",":",",",";","(",")","[","]","{","}","$",".","%","<",">"};//标点符号
-	public static final String[] arithmeticOperatorsArray = {"+","-","*","/","="};//运算符
-
-	public static final Color normalColor = new Color(230,126,34);//默认颜色
-	public static final Color keywordColor = new Color(231,76,60);//关键词颜色
-	public static final Color stringColor = new Color(241,196,15);//字符串内容颜色
-	public static final Color numberColor = new Color(108,113,196);//数字颜色
-	public static final Color functionNameColor = new Color(46,204,113);//函数名称颜色
-	public static final Color punctuationColor = Color.WHITE;//标点颜色
-	public static final Color attributeColor = Color.WHITE;//属性名称颜色
-	
-
-	private Style keywordStyle;	//关键词样式
-	private Style normalStyle;	//默认样式
-	private Style stringStyle;	//字符串内容样式
-	private Style numberStyle;	//数字样式
-	private Style functionNameStyle;//函数名称样式
-	private Style punctuationStyle;//标点名称样式
-	private Style attributeStyle;//标点名称样式
-	
-	private boolean stringStart = false;
-
-	public SyntaxHighlighter(JTextPane editor) {
-		// 准备着色使用的样式
-		keywordStyle = ((StyledDocument) editor.getDocument()).addStyle("Keyword_Style", null);
-		normalStyle = ((StyledDocument) editor.getDocument()).addStyle("Normal_Style", null);
-		stringStyle = ((StyledDocument) editor.getDocument()).addStyle("String_Style", null);
-		functionNameStyle = ((StyledDocument) editor.getDocument()).addStyle("FunctionName_Style", null);
-		numberStyle = ((StyledDocument) editor.getDocument()).addStyle("Number_Style", null);
-		punctuationStyle = ((StyledDocument) editor.getDocument()).addStyle("Punctuation_Style", null);
-		stringStyle = ((StyledDocument) editor.getDocument()).addStyle("String_Style", null);
-		attributeStyle = ((StyledDocument) editor.getDocument()).addStyle("attribute_Style", null);
-		//默认样式设置
-		StyleConstants.setForeground(normalStyle, normalColor);
-		//关键词样式设置
-		StyleConstants.setForeground(keywordStyle, keywordColor);
-		StyleConstants.setBold(keywordStyle, true);
-		//函数名样式设置
-		StyleConstants.setForeground(functionNameStyle, functionNameColor);
-		//数字样式设置
-		StyleConstants.setForeground(numberStyle, numberColor);
-		//标点样式设置
-		StyleConstants.setForeground(punctuationStyle, punctuationColor);
-		//字符串样式设置
-		StyleConstants.setForeground(stringStyle, stringColor);
-		//属性样式设置
-		StyleConstants.setForeground(attributeStyle, attributeColor);
-		
-		// 准备关键字
-		keywords = new HashSet<String>();
-		addAll(keywords, keywordArray);
-		//准备标点符号
-		punctuations = new HashSet<String>();
-		addAll(punctuations,punctuationArray);
-		//准备运算符
-		arithmeticOperators = new HashSet<String>();
-		addAll(arithmeticOperators, arithmeticOperatorsArray);
-		
+	public JFrame getFrame() {
+		return frame;
 	}
 	
-	private void addAll(Set<String> set, String[] array) {
-		for(int i = 0; i < array.length;i++){
-			set.add(array[i]);
-		}
+	public boolean getIsModefied() {
+		return isModefied;
 	}
-
-	public void colouring(StyledDocument doc, int pos, int len) throws BadLocationException {
-		// 取得插入或者删除后影响到的单词.
-		// 例如"public"在b后插入一个空格, 就变成了:"pub lic", 这时就有两个单词要处理:"pub"和"lic"
-		// 这时要取得的范围是pub中p前面的位置和lic中c后面的位置
-		
-		int start = indexOfWordStart(doc, pos);
-		int end = indexOfWordEnd(doc, pos + len);
-		
-		int nextPos = indexOfStringLineEnd(doc, pos);
-		System.out.println("nextPos = " + nextPos);
-		if(end < nextPos){
-			end = nextPos;
-		}
-		System.out.println("endindex :" + end);
-		
-		char ch;
-		while (start < end) {
-			ch = getCharAt(doc, start);
-			System.out.println("本轮是" + ch);
-			if(indexOfStringLineStart(doc, start) != -1 && ch != '"'){
-				SwingUtilities.invokeLater(new ColouringTask(doc, start, 1, stringStyle));
-				++start;
-			}else if (Character.isLetter(ch) || ch == '_') {
-				// 如果是以字母或者下划线开头, 说明是单词
-				// pos为处理后的最后一个下标
-				start = colouringWord(doc, start);
-			} else if(ch == '"' || ch == '\'') {
-				SwingUtilities.invokeLater(new ColouringTask(doc, start, 1, stringStyle));
-				++start;
-			} else if(Character.isDigit(ch)) {
-				//数字
-				SwingUtilities.invokeLater(new ColouringTask(doc, start, 1, numberStyle));
-				++start;
-			} else if(arithmeticOperators.contains(String.valueOf(ch))){
-				//运算符 使用和关键词一样的样式
-				SwingUtilities.invokeLater(new ColouringTask(doc, start, 1, keywordStyle));
-				++start;
-			} else if(punctuations.contains(String.valueOf(ch))) {
-				//标点符号
-				SwingUtilities.invokeLater(new ColouringTask(doc, start, 1, punctuationStyle));
-				++start;
-			}else {
-				//默认
-				SwingUtilities.invokeLater(new ColouringTask(doc, start, 1, normalStyle));
-				++start;
+	
+	public void setIsModefied(boolean isModefied) {
+		if(isModefied){
+			if(currentFile != null){
+				frame.setTitle(currentFile.getPath() + " ● - " + EDITOR_NAME);
+			}else{
+				frame.setTitle("Untitled ● - " + EDITOR_NAME);
+			}
+			
+		}else {
+			if(currentFile != null){
+				frame.setTitle(currentFile.getPath() + " - " + EDITOR_NAME);
+			}else{
+				frame.setTitle("Untitled - " + EDITOR_NAME);
 			}
 		}
+		this.isModefied = isModefied;
 	}
 	
-	public void colouringString(StyledDocument doc, int startPos, int endPos) {
-		
+	public static void main(String[] args) {
+		new HighlightKeywordsDemo();
 	}
-
-	/**
-	 * 对单词进行着色, 并返回单词结束的下标.
-	 * 
-	 * @param doc
-	 * @param pos
-	 * @return
-	 * @throws BadLocationException
-	 */
-	public int colouringWord(StyledDocument doc, int pos) throws BadLocationException {
-		int wordEnd = indexOfWordEnd(doc, pos);
-		String word = doc.getText(pos, wordEnd - pos);
-
-		if (keywords.contains(word)) {
-			// 如果是关键字, 就进行关键字的着色
-			// 这里有一点要注意, 在insertUpdate和removeUpdate的方法调用的过程中, 不能修改doc的属性.
-			// 但我们又要达到能够修改doc的属性, 所以把此任务放到这个方法的外面去执行.
-			// 实现这一目的, 可以使用新线程, 但放到swing的事件队列里去处理更轻便一点.
-			SwingUtilities.invokeLater(new ColouringTask(doc, pos, wordEnd - pos, keywordStyle));
-		} else if(doc.getText(wordEnd,1).charAt(0) == '('){
-			//如果是函数名，使用函数名的着色
-			SwingUtilities.invokeLater(new ColouringTask(doc, pos, wordEnd - pos, functionNameStyle));
-		}else if (pos-1 >=0 && doc.getText(pos-1, 1).charAt(0) == '.') {
-			//如果是属性名，使用属性名字着色
-			SwingUtilities.invokeLater(new ColouringTask(doc, pos, wordEnd - pos, attributeStyle));
-		}else {
-			SwingUtilities.invokeLater(new ColouringTask(doc, pos, wordEnd - pos, normalStyle));
+	
+	private boolean openFile() {
+		JFileChooser fileChooser = new JFileChooser();
+		int option = fileChooser.showOpenDialog(frame);
+		if(option == JFileChooser.APPROVE_OPTION){
+			currentFile = fileChooser.getSelectedFile();
+			frame.setTitle(currentFile.getPath() + " - " + EDITOR_NAME);
+			try {
+				BufferedReader in = new BufferedReader(new FileReader(currentFile));
+				String all = "",row;
+				while((row = in.readLine()) != null){
+					all = all + row + "\r\n";
+				}
+				editor.setText(all);
+				in.close();
+				//打开文件后 文件处于未修改状态
+				setIsModefied(false);
+				return true;
+			} catch (IOException e1) {
+				// TODO Auto-generated catch block
+				e1.printStackTrace();
+				return false;
+			}
 		}
-
-		return wordEnd;
-	}
-
-	/**
-	 * 取得在文档中下标在pos处的字符.
-	 * 
-	 * 如果pos为doc.getLength(), 返回的是一个文档的结束符, 不会抛出异常. 如果pos<0, 则会抛出异常.
-	 * 所以pos的有效值是[0, doc.getLength()]
-	 * 
-	 * @param doc
-	 * @param pos
-	 * @return
-	 * @throws BadLocationException
-	 */
-	public char getCharAt(Document doc, int pos) throws BadLocationException {
-		return doc.getText(pos, 1).charAt(0);
-	}
-
-	/**
-	 * 取得下标为pos时, 它所在的单词开始的下标. Â±wor^dÂ± (^表示pos, Â±表示开始或结束的下标)
-	 * 
-	 * @param doc
-	 * @param pos
-	 * @return
-	 * @throws BadLocationException
-	 */
-	public int indexOfWordStart(Document doc, int pos) throws BadLocationException {
-		// 从pos开始向前找到第一个非单词字符.
-		for (; pos > 0 && isWordCharacter(doc, pos - 1); --pos);
-
-		return pos;
-	}
-
-	/**
-	 * 取得下标为pos时, 它所在的单词结束的下标. Â±wor^dÂ± (^表示pos, Â±表示开始或结束的下标)
-	 * 
-	 * @param doc
-	 * @param pos
-	 * @return
-	 * @throws BadLocationException
-	 */
-	public int indexOfWordEnd(Document doc, int pos) throws BadLocationException {
-		// 从pos开始向后找到第一个非单词字符.
-		for (; isWordCharacter(doc, pos); ++pos);
-
-		return pos;
-	}
-
-	/**
-	 * 如果一个字符是字母, 数字, 下划线, 则返回true.
-	 * 
-	 * @param doc
-	 * @param pos
-	 * @return
-	 * @throws BadLocationException
-	 */
-	public boolean isWordCharacter(Document doc, int pos) throws BadLocationException {
-		char ch = getCharAt(doc, pos);
-		if (Character.isLetter(ch) || Character.isDigit(ch) || ch == '_') { return true; }
 		return false;
 	}
-	/*
-	 * 如果本行当前位置前面的"是奇数个，则返回最后一个"的pos
-	 * 否则返回-1
-	 */
-	public int indexOfStringLineStart(Document doc, int endpos) throws BadLocationException {
-		int startpos = endpos;
-		for (; startpos > 0 && getCharAt(doc, startpos-1) != '\n' && getCharAt(doc, startpos-1) != '\r'; --startpos);
-		String all = doc.getText(startpos, endpos - startpos);
-		System.out.println("all:" + all);
-		int num = 0;
-		for(int i = 0; i < all.length();i++){
-			if(all.charAt(i) == '"'){
-				num++;
+
+	@Override
+	public void actionPerformed(ActionEvent e) {
+		// TODO Auto-generated method stub
+		if(e.getSource() == exit){
+			if (isModefied) {
+				if(JOptionPane.showConfirmDialog(frame, "文件没有保存,确定退出程序吗？") == JOptionPane.YES_OPTION){
+					frame.dispose();
+				}
 			}
-		}
-		//System.out.println("num:" + num);
-		if(num % 2 == 1){
-			//是奇数个，返回之前的一个"的pos
-			//System.out.println("上一个\"的位置：" + all.lastIndexOf("\""));
-			return all.lastIndexOf("\"");
-		}else{
-			return -1;
-		}
-	}
-	/*
-	 * 如果本行当前位置后面的"存在,返回其pos
-	 * 否则返回换行符的位置
-	 */
-	public int indexOfStringLineEnd(Document doc, int startPos) throws BadLocationException {
-		int i;
-		for (i = startPos + 1;i < doc.getLength();i++){
-			if(doc.getText(i, 1).charAt(0) == '"' || doc.getText(i, 1).charAt(0) == '\n' || doc.getText(i, 1).charAt(0) == '\r'){
-				return i;
+		}else if(e.getSource() == saveFile){
+			if(currentFile == null){
+				JFileChooser fileChoose = new JFileChooser();
+				int option = fileChoose.showSaveDialog(frame);
+				if (option == JFileChooser.APPROVE_OPTION) {
+					currentFile = fileChoose.getSelectedFile();
+				}
 			}
-		}
-		return --i;
-	}
-	
-	//public int indexOf
-	
-	@Override
-	public void changedUpdate(DocumentEvent e) {
-
-	}
-
-	@Override
-	public void insertUpdate(DocumentEvent e) {
-		try {
-			colouring((StyledDocument) e.getDocument(), e.getOffset(), e.getLength());
-		} catch (BadLocationException e1) {
-			e1.printStackTrace();
-		}
-	}
-
-	@Override
-	public void removeUpdate(DocumentEvent e) {
-		try {
-			// 因为删除后光标紧接着影响的单词两边, 所以长度就不需要了
-			colouring((StyledDocument) e.getDocument(), e.getOffset(), 0);
-		} catch (BadLocationException e1) {
-			e1.printStackTrace();
-		}
-	}
-
-	/**
-	 * 完成着色任务
-	 * 
-	 * @author Biao
-	 * 
-	 */
-	private class ColouringTask implements Runnable {
-		private StyledDocument doc;
-		private Style style;
-		private int pos;
-		private int len;
-
-		public ColouringTask(StyledDocument doc, int pos, int len, Style style) {
-			this.doc = doc;
-			this.pos = pos;
-			this.len = len;
-			this.style = style;
-		}
-
-		public void run() {
 			try {
-				// 这里就是对字符进行着色
-				doc.setCharacterAttributes(pos, len, style, true);
-			} catch (Exception e) {}
+				BufferedWriter out = new BufferedWriter(new FileWriter(currentFile.getPath()));
+				// Write the contents of the TextArea to the file
+				out.write(editor.getText());
+				// Close the file stream
+				out.close();
+				//保存后处于未修改状态
+				setIsModefied(false);
+			} catch (Exception e2) {
+				// TODO: handle exception
+				System.out.println(e2.getMessage());
+			}
+			
+	
+		}else if(e.getSource() == openFile){
+			if(!isModefied){
+				openFile();
+			}else{
+				if(JOptionPane.showConfirmDialog(frame, "文件没有保存,确定打开新的文件吗？") == JOptionPane.YES_OPTION){
+					openFile();
+				}
+			}
+		}else if(e.getSource() == newFile) {
+			if(!isModefied){
+				currentFile = null;
+				setIsModefied(false);
+			}else{
+				if(JOptionPane.showConfirmDialog(frame, "文件没有保存,确定新建文件吗？") == JOptionPane.YES_OPTION){
+					currentFile = null;
+					setIsModefied(false);
+				}
+			}
+		}else if (e.getSource() == selectAll) {
+			editor.selectAll();
+		} else if (e.getSource() == copy) {
+			editor.copy();
+		} else if (e.getSource() == cut) {
+			editor.cut();
+		} else if (e.getSource() == paste) {
+			editor.paste();
 		}
 	}
 }
-
