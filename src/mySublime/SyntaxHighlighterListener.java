@@ -1,11 +1,10 @@
 package mySublime;
 
 import java.awt.Color;
-import java.awt.Frame;
 import java.util.HashSet;
 import java.util.Set;
 
-import javax.swing.JFrame;
+
 import javax.swing.JTextPane;
 import javax.swing.SwingUtilities;
 import javax.swing.event.DocumentEvent;
@@ -30,6 +29,7 @@ class SyntaxHighlighterListener implements DocumentListener {
 	private Set<String> keywords;
 	private Set<String> punctuations;
 	private Set<String> arithmeticOperators;
+	private Set<String> builtInObject;
 	
 	public static final int COMMENT_NORMAL = 0; 	// /**/ 普通注释风格
 	public static final int COMMENT_WEB = 1;		// <!-- --> web注释风格
@@ -39,6 +39,7 @@ class SyntaxHighlighterListener implements DocumentListener {
 			"var","void","while","with"};//关键词
 	public static final String[] punctuationArray = {"\\",":",",",";","(",")","[","]","{","}","$",".","%","<",">"};//标点符号
 	public static final String[] arithmeticOperatorsArray = {"+","-","*","/","="};//运算符
+	public static final String[] buildInObjectArray = {"Date","Object","Math","Document","window","Window"};//内置对象
 
 	public static final Color normalColor = new Color(230,126,34);//默认颜色
 	public static final Color keywordColor = new Color(231,76,60);//关键词颜色
@@ -48,6 +49,7 @@ class SyntaxHighlighterListener implements DocumentListener {
 	public static final Color punctuationColor = Color.WHITE;//标点颜色
 	public static final Color attributeColor = Color.WHITE;//属性名称颜色
 	public static final Color commentColor = new Color(146, 145, 145);//注释颜色
+	public static final Color buildInObjectColor = new Color(26,188,156);//注释颜色
 	
 
 	private Style keywordStyle;	//关键词样式
@@ -58,6 +60,7 @@ class SyntaxHighlighterListener implements DocumentListener {
 	private Style punctuationStyle;//标点样式
 	private Style attributeStyle;//属性名称样式
 	private Style commentStyle;//注释样式
+	private Style buildInObjectStyle;//内置对象样式
 	
 	private boolean stringStart = false;
 	private HighlightKeywordsDemo UI;
@@ -73,6 +76,7 @@ class SyntaxHighlighterListener implements DocumentListener {
 		stringStyle = ((StyledDocument) editor.getDocument()).addStyle("String_Style", null);
 		attributeStyle = ((StyledDocument) editor.getDocument()).addStyle("attribute_Style", null);
 		commentStyle = ((StyledDocument) editor.getDocument()).addStyle("comment_Style", null);
+		buildInObjectStyle = ((StyledDocument) editor.getDocument()).addStyle("buildInObject_Style", null);
 		//默认样式设置
 		StyleConstants.setForeground(normalStyle, normalColor);
 		//关键词样式设置 粗体
@@ -91,6 +95,9 @@ class SyntaxHighlighterListener implements DocumentListener {
 		//注释样式设置,斜体
 		StyleConstants.setForeground(commentStyle, commentColor);
 		StyleConstants.setItalic(commentStyle, true);
+		//内置对象样式设置
+		StyleConstants.setForeground(buildInObjectStyle, buildInObjectColor);
+		StyleConstants.setBold(buildInObjectStyle, true);
 		
 		// 准备关键字
 		keywords = new HashSet<String>();
@@ -101,6 +108,9 @@ class SyntaxHighlighterListener implements DocumentListener {
 		//准备运算符
 		arithmeticOperators = new HashSet<String>();
 		addAll(arithmeticOperators, arithmeticOperatorsArray);
+		//准备内置对象
+		builtInObject = new HashSet<String>();
+		addAll(builtInObject, buildInObjectArray);
 		
 		this.UI = UI;
 		
@@ -278,6 +288,9 @@ class SyntaxHighlighterListener implements DocumentListener {
 		} else if(doc.getText(wordEnd,1).charAt(0) == '('){
 			//如果是函数名，使用函数名的着色
 			SwingUtilities.invokeLater(new ColouringTask(doc, pos, wordEnd - pos, functionNameStyle));
+		} else if(builtInObject.contains(word)){
+			//内置对象
+			SwingUtilities.invokeLater(new ColouringTask(doc, pos, wordEnd - pos, buildInObjectStyle));
 		}else if (pos-1 >=0 && doc.getText(pos-1, 1).charAt(0) == '.') {
 			//如果是属性名，使用属性名字着色
 			SwingUtilities.invokeLater(new ColouringTask(doc, pos, wordEnd - pos, attributeStyle));
